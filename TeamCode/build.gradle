@@ -25,4 +25,5 @@ android {
 
 dependencies {
     implementation project(':FtcRobotController')
+    implementation "org.solvelib:pedroPathing:0.3.3" // pedro pathing/
 }
