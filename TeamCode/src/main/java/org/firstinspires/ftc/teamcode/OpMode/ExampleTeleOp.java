@@ -11,6 +11,7 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import org.firstinspires.ftc.robotcore.external.Const;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import java.util.function.Supplier;
@@ -19,7 +20,7 @@ import java.util.function.Supplier;
 @TeleOp
 public class ExampleTeleOp extends OpMode {
     private Follower follower;
-    public static Pose startingPose = new Pose(72,72, Math.toRadians(90)); //See ExampleAuto to understand how to use this
+    public static Pose startingPose; //See ExampleAuto to understand how to use this
     private boolean automatedDrive;
     private Supplier<PathChain> pathChain;
     private TelemetryManager telemetryM;
@@ -62,8 +63,7 @@ public class ExampleTeleOp extends OpMode {
                     -gamepad1.left_stick_y,
                     -gamepad1.left_stick_x,
                     -gamepad1.right_stick_x,
-                    false,
-                    Math.toRadians(0)// Robot Centric
+                    true // Robot Centric
             );
 
                 //This is how it looks with slowMode on
@@ -71,8 +71,7 @@ public class ExampleTeleOp extends OpMode {
                     -gamepad1.left_stick_y * slowModeMultiplier,
                     -gamepad1.left_stick_x * slowModeMultiplier,
                     -gamepad1.right_stick_x * slowModeMultiplier,
-                    false,
-                    Math.toRadians(0)// Robot Centric
+                    true // Robot Centric
             );
         }
 
