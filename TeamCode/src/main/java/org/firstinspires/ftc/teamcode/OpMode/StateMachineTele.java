@@ -20,7 +20,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @Configurable
 @TeleOp
 public class StateMachineTele extends OpMode {
-
+//test
     public ShooterSubsytem shooter;//fais appelle au Code ShooterSubsystem
     private Follower follower;//Pedropathing follower
     private Servo Servorot;//défine le servo en tant qu'existant
