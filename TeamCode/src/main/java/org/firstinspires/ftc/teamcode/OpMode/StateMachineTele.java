@@ -9,7 +9,6 @@ import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
@@ -20,7 +19,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @Configurable
 @TeleOp
 public class StateMachineTele extends OpMode {
-//test
+
     public ShooterSubsytem shooter;//fais appelle au Code ShooterSubsystem
     private Follower follower;//Pedropathing follower
     private Servo Servorot;//défine le servo en tant qu'existant
@@ -31,21 +30,22 @@ public class StateMachineTele extends OpMode {
     private DcMotor Shooter1;
     private DcMotor Shooter2;
 
-    public static Pose startingPose;
-
     private DcMotor Intake;
     private DcMotor INTAKE;
-    private IMU imu;
+
     //défini les positions du shooters
+    private final Pose startPose = new Pose(72, 72, Math.toRadians(90));
     public static double GATE_OPEN = 0.0;
     public static double GATE_CLOSED = 0.89;
     //dis au code quand le trigger est triggerrer pouv éviter les missclicks
     public static double TRIGGER_THRESHOLD = 0.1;
+
     //défini les states de la state machine afin que le code sache qu'elle existe
     public enum ShooterState {
         OFF,          // shooter arrêté
         SPINNING_UP,  // flywheel en train d'accélérer
         FIRING        // flywheel prêt, gate ouvert
+
     }
 
     //dis au code qu'au début il est pas actif pour éviter les bugs (fais appelle au premier state ligne 41)
@@ -57,17 +57,11 @@ public class StateMachineTele extends OpMode {
 
     @Override
     public void init() {
-        imu = hardwareMap.get(IMU.class, "imu");
-        RevHubOrientationOnRobot RevOrientation = new RevHubOrientationOnRobot
-                (RevHubOrientationOnRobot.LogoFacingDirection.LEFT,
-                        RevHubOrientationOnRobot.UsbFacingDirection.UP);
-        imu.initialize(new IMU.Parameters(RevOrientation));
-
 
         shooter = new ShooterSubsytem(hardwareMap);
         //dis au code que le Shooter Subsytem s'appelle shooter il sera nommé shooter dans le code
         Servorot = hardwareMap.get(Servo.class, "Servorot");
-        //le servo est nommer Servorot et il est un servo class il pourait etre un servorot class
+        //le servo est nommer Servorot et il est un servo class il pourrait être un servorot class
         INTAKE = hardwareMap.dcMotor.get("INTAKE");
         Intake = hardwareMap.dcMotor.get("Intake");
         FrontL = hardwareMap.dcMotor.get("FrontL");
@@ -80,7 +74,7 @@ public class StateMachineTele extends OpMode {
         Shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         // explique au code que le shooter utilise l'encondeur ce qui fais le PID du ShooterSubsytem
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
+        follower.setStartingPose(startPose);
         follower.startTeleOpDrive();
         follower.update();
 
@@ -93,12 +87,14 @@ public class StateMachineTele extends OpMode {
     @Override
     public void loop() {
         // les followwer updates et les gamepad1.Xstick_variable x ou y
-        // disent au robot à l'aide de pedro path que le robot roule en mechanum// follower.update();// follower.setTeleOpDrive(
-        //         -gamepad1.left_stick_y,
-        //         -gamepad1.left_stick_x,
-        //         -gamepad1.right_stick_x,
-        //         true);
-
+        // disent au robot à l'aide de pedro path que le robot roule en mechanum
+        follower.update();
+        follower.setTeleOpDrive(
+                -gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
+                -gamepad1.right_stick_x,
+                false,
+                90);
         // contrôle intake
         if (gamepad1.right_bumper) {
             Intake.setPower(1);
@@ -190,30 +186,4 @@ public class StateMachineTele extends OpMode {
         telemetry.update();
     }
 
-    public void FeildRelativeDrive (){
-        double forward = -gamepad1.left_stick_y;
-        double strafe  = gamepad1.left_stick_x;
-        double turn    = gamepad1.right_stick_x;
-
-        double theta = Math.atan2(forward, strafe);
-        double r = Math.hypot(strafe, forward);
-
-        theta = AngleUnit.normalizeRadians(theta-imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS));
-
-        double newForward = r * Math.sin(theta);
-        double newStrafe  = r * Math.cos(theta);
-
-
-
-        double frontLeft  = (newForward + newStrafe + turn);
-        double backLeft   = (newForward - newStrafe + turn);
-        double frontRight = (newForward - newStrafe - turn);
-        double backRight  = (newForward + newStrafe - turn);
-
-
-        FrontL.setPower(frontLeft);
-        BackL.setPower(backLeft);
-        FrontR.setPower(frontRight);
-        BackR.setPower(backRight);
-    }
 }
