@@ -20,10 +20,11 @@ public class ShooterSubsytem {
     public static double D = 0.00001;
     public static double F = 0.00038;
 
-    public static double TARGET_TPS = 1400;
     public static double VELOCITY_TOLERANCE_TPS = 50;
     public static double NOMINAL_VOLTAGE = 12;
     public static double MAX_POWER = 1.0;
+
+    private double targetTPS = 1360;
 
     private boolean enabled = false;
 
@@ -36,17 +37,27 @@ public class ShooterSubsytem {
     public ShooterSubsytem(HardwareMap hardwareMap) {
         shooter1 = hardwareMap.get(DcMotorEx.class, "Shooter1");
         shooter2 = hardwareMap.get(DcMotorEx.class, "Shooter2");
+
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
         shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooter2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        shooter1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-        shooter2.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooter1.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooter2.setDirection(DcMotorSimple.Direction.FORWARD);
 
         timer.reset();
+    }
+
+    public void setTargetTPS(double targetTPS) {
+        this.targetTPS = targetTPS;
+    }
+
+    public double getTargetTPS() {
+        return targetTPS;
     }
 
     public void start() {
@@ -55,42 +66,52 @@ public class ShooterSubsytem {
 
     public void stop() {
         enabled = false;
+
         integralSum = 0.0;
         lastError = 0.0;
         lastPower = 0.0;
+
         shooter1.setPower(0.0);
         shooter2.setPower(0.0);
     }
 
     public void update() {
-        if (!enabled || TARGET_TPS <= 0) {
+        if (!enabled || targetTPS <= 0) {
             shooter1.setPower(0.0);
             shooter2.setPower(0.0);
+
             integralSum = 0.0;
             lastError = 0.0;
             lastPower = 0.0;
+
             timer.reset();
             return;
         }
 
         double currentTPS = getCurrentTPS();
-        double error = TARGET_TPS - currentTPS;
+        double error = targetTPS - currentTPS;
 
         double dt = timer.seconds();
         timer.reset();
 
-        if (dt <= 0) dt = 0.001;
+        if (dt <= 0) {
+            dt = 0.001;
+        }
 
         integralSum += error * dt;
+
         double derivative = (error - lastError) / dt;
         lastError = error;
 
         double voltage = voltageSensor.getVoltage();
         double normalizedVoltage = voltage / NOMINAL_VOLTAGE;
-        if (normalizedVoltage <= 0) normalizedVoltage = 1.0;
+
+        if (normalizedVoltage <= 0) {
+            normalizedVoltage = 1.0;
+        }
 
         double pid = (P * error) + (I * integralSum) + (D * derivative);
-        double ff = F * TARGET_TPS / normalizedVoltage;
+        double ff = F * targetTPS / normalizedVoltage;
 
         double power = pid + ff;
         power = Math.max(0.0, Math.min(MAX_POWER, power));
@@ -102,7 +123,7 @@ public class ShooterSubsytem {
     }
 
     public boolean atSpeed() {
-        return enabled && TARGET_TPS > 0 && Math.abs(TARGET_TPS - getCurrentTPS()) <= VELOCITY_TOLERANCE_TPS;
+        return enabled && targetTPS > 0 && Math.abs(targetTPS - getCurrentTPS()) <= VELOCITY_TOLERANCE_TPS;
     }
 
     public double getCurrentTPS() {
@@ -126,7 +147,7 @@ public class ShooterSubsytem {
     }
 
     public double getError() {
-        return TARGET_TPS - getCurrentTPS();
+        return targetTPS - getCurrentTPS();
     }
 
     public boolean isEnabled() {

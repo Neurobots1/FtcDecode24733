@@ -1,19 +1,16 @@
 package org.firstinspires.ftc.teamcode.OpMode;
 
-import static org.firstinspires.ftc.teamcode.OpMode.ShooterSubsytem.TARGET_TPS;
 
+import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.follower;
 
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.teamcode.OpMode.ShooterSubsytem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @Configurable
@@ -27,16 +24,20 @@ public class StateMachineTele extends OpMode {
     private DcMotor FrontR;
     private DcMotor BackL;
     private DcMotor BackR;
-    private DcMotor Shooter1;
+    //private DcMotor Shooter1;
     private DcMotor Shooter2;
 
     private DcMotor Intake;
     private DcMotor INTAKE;
 
     //défini les positions du shooters
+    public double TARGET_TPS = 1360;
+    public double DISTANCE = 10;
+
+    public double servo_cool= 0.4;
     private final Pose startPose = new Pose(72, 72, Math.toRadians(90));
-    public static double GATE_OPEN = 0.0;
-    public static double GATE_CLOSED = 0.89;
+    public static double GATE_OPEN = 0.69;
+    public static double GATE_CLOSED = 0.0;
     //dis au code quand le trigger est triggerrer pouv éviter les missclicks
     public static double TRIGGER_THRESHOLD = 0.1;
 
@@ -48,6 +49,7 @@ public class StateMachineTele extends OpMode {
 
     }
 
+
     //dis au code qu'au début il est pas actif pour éviter les bugs (fais appelle au premier state ligne 41)
     private ShooterState shooterState = ShooterState.OFF;
 
@@ -57,7 +59,7 @@ public class StateMachineTele extends OpMode {
 
     @Override
     public void init() {
-
+        double DISTANCE = 10;
         shooter = new ShooterSubsytem(hardwareMap);
         //dis au code que le Shooter Subsytem s'appelle shooter il sera nommé shooter dans le code
         Servorot = hardwareMap.get(Servo.class, "Servorot");
@@ -68,10 +70,10 @@ public class StateMachineTele extends OpMode {
         FrontR = hardwareMap.dcMotor.get("FrontR");
         BackL = hardwareMap.dcMotor.get("BackL");
         BackR = hardwareMap.dcMotor.get("BackR");
-        Shooter1 = hardwareMap.dcMotor.get("Shooter1");
+       // Shooter1 = hardwareMap.dcMotor.get("Shooter1");
         Shooter2 = hardwareMap.dcMotor.get("Shooter2");
         //nomme tous les moteurs
-        Shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        //Shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         // explique au code que le shooter utilise l'encondeur ce qui fais le PID du ShooterSubsytem
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startPose);
@@ -94,7 +96,7 @@ public class StateMachineTele extends OpMode {
                 -gamepad1.left_stick_x,
                 -gamepad1.right_stick_x,
                 false,
-                90);
+                Math.toRadians(180));
         // contrôle intake
         if (gamepad1.right_bumper) {
             Intake.setPower(1);
@@ -108,7 +110,6 @@ public class StateMachineTele extends OpMode {
         }
 
         //le TARGET_TPS c'est le shooter
-        TARGET_TPS = 1360;
 
         //définie l'état du trigger pour le shooter (activer ou pas sans avoir a maintenir le trigger
         // position active ou pas
@@ -122,7 +123,6 @@ public class StateMachineTele extends OpMode {
                 // premier clic
                 // on commence le spinup
                 shooterState = ShooterState.SPINNING_UP;
-
                 Servorot.setPosition(GATE_CLOSED); // gate fermé
                 shooter.start();                   // flywheel démarre
 
@@ -136,8 +136,9 @@ public class StateMachineTele extends OpMode {
                 shooter.stop();
             }
         }
-
-        //défini chaque state de la state machine du shooter
+        double DISTANCE = (follower.getPose().getX()*follower.getPose().getX() +follower.getPose().getY()*follower.getPose().getY());
+        //définit chaque state de la state machine du shooter
+        double TARGET_TPS = 1200;
         switch (shooterState) {
 
             case OFF:
@@ -182,8 +183,11 @@ public class StateMachineTele extends OpMode {
         telemetry.addData("Power", shooter.getLastPower());
         telemetry.addData("Voltage", shooter.getVoltage());
         telemetry.addData("At Speed", shooter.atSpeed());
-
+        telemetry.addData("x:",  follower.getPose().getX());
+        telemetry.addData("y:", follower.getPose().getY());
+        telemetry.addData("Distance:", DISTANCE);
+        telemetry.addData("servo:position",servo_cool );
         telemetry.update();
-    }
 
-}
+        }
+    }
