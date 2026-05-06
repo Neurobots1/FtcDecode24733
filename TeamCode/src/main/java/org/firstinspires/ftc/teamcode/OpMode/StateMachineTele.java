@@ -7,7 +7,6 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
@@ -37,9 +36,7 @@ public class StateMachineTele extends OpMode {
     public static double GATE_CLOSED = 0.0;
     public static double TRIGGER_THRESHOLD = 0.1;
     public static double DRIVER_TURN_OVERRIDE = 0.08;
-    public static double PRE_FEED_INTAKE_POWER = -0.8;
     public static double MAIN_FEED_INTAKE_POWER = -1.0;
-    public static double FEED_OPEN_SETTLING_SECONDS = 0.30;
 
     public enum ShooterState {
         OFF,
@@ -47,12 +44,10 @@ public class StateMachineTele extends OpMode {
         FIRING
     }
 
-    private final ElapsedTime gateOpenTimer = new ElapsedTime();
     private ShooterState shooterState = ShooterState.OFF;
     private boolean fireToggleLast = false;
     private boolean shootingArmed = false;
     private boolean gateLatchedOpen = false;
-    private boolean feedSettlingStarted = false;
 
     @Override
     public void init() {
@@ -79,8 +74,6 @@ public class StateMachineTele extends OpMode {
         shooterState = ShooterState.OFF;
         shootingArmed = false;
         gateLatchedOpen = false;
-        feedSettlingStarted = false;
-        gateOpenTimer.reset();
     }
 
     @Override
@@ -92,7 +85,8 @@ public class StateMachineTele extends OpMode {
 
         double driverTurnCommand = -gamepad1.right_stick_x;
         double turnCommand = driverTurnCommand;
-        boolean headingLockActive = autoAim.isInSpinUpZone()
+        boolean headingLockActive = shootingArmed
+                && autoAim.isInSpinUpZone()
                 && Math.abs(driverTurnCommand) < DRIVER_TURN_OVERRIDE;
         if (headingLockActive) {
             turnCommand = autoAim.getTurnPower();
@@ -112,10 +106,7 @@ public class StateMachineTele extends OpMode {
             if (shootingArmed) {
                 shooterState = ShooterState.SPINNING_UP;
             } else {
-                shooterState = ShooterState.OFF;
-                gateLatchedOpen = false;
-                feedSettlingStarted = false;
-                gateOpenTimer.reset();
+                stopShootingSequence();
             }
         }
         fireToggleLast = gamepad1.y;
@@ -125,11 +116,14 @@ public class StateMachineTele extends OpMode {
         boolean autoSpinRequested = autoAim.isInSpinUpZone();
         boolean shooterReady = shooter.atSpeed() && autoAim.isAimed();
 
+        if (shootingArmed && !autoSpinRequested) {
+            stopShootingSequence();
+        }
+
         switch (shooterState) {
             case OFF:
                 Servorot.setPosition(GATE_CLOSED);
                 gateLatchedOpen = false;
-                feedSettlingStarted = false;
                 if (autoSpinRequested) {
                     shooter.start();
                 } else {
@@ -142,8 +136,6 @@ public class StateMachineTele extends OpMode {
                 Servorot.setPosition(GATE_CLOSED);
                 if (shootingArmed && shooterReady) {
                     gateLatchedOpen = true;
-                    feedSettlingStarted = false;
-                    gateOpenTimer.reset();
                     shooterState = ShooterState.FIRING;
                 }
                 break;
@@ -155,29 +147,16 @@ public class StateMachineTele extends OpMode {
                 } else {
                     Servorot.setPosition(GATE_CLOSED);
                     gateLatchedOpen = false;
-                    feedSettlingStarted = false;
                     shooterState = shootingArmed ? ShooterState.SPINNING_UP : ShooterState.OFF;
                 }
                 break;
         }
 
         boolean gateOpen = shooterState == ShooterState.FIRING && gateLatchedOpen;
-        if (gateOpen && !feedSettlingStarted) {
-            feedSettlingStarted = true;
-            gateOpenTimer.reset();
-        } else if (!gateOpen) {
-            feedSettlingStarted = false;
-        }
-
-        boolean forceFeedIntake = gateOpen
-                && feedSettlingStarted
-                && gateOpenTimer.seconds() >= FEED_OPEN_SETTLING_SECONDS;
-        boolean preFeedIntake = shootingArmed && !forceFeedIntake;
+        boolean forceFeedIntake = gateOpen;
 
         if (forceFeedIntake) {
             setIntakePower(MAIN_FEED_INTAKE_POWER);
-        } else if (preFeedIntake) {
-            setIntakePower(PRE_FEED_INTAKE_POWER);
         } else if (gamepad1.right_bumper) {
             setIntakePower(1);
         } else if (gamepad1.left_bumper) {
@@ -192,7 +171,6 @@ public class StateMachineTele extends OpMode {
         telemetry.addData("Shooting Armed", shootingArmed);
         telemetry.addData("Gate Latched", gateLatchedOpen);
         telemetry.addData("Force Feed Intake", forceFeedIntake);
-        telemetry.addData("Pre Feed Intake", preFeedIntake);
         telemetry.addData("Target TPS", TARGET_TPS);
         telemetry.addData("Target RPM", autoAim.getTargetRPM());
         telemetry.addData("Current TPS", shooter.getCurrentTPS());
@@ -215,5 +193,12 @@ public class StateMachineTele extends OpMode {
     private void setIntakePower(double power) {
         Intake.setPower(power);
         INTAKE.setPower(power);
+    }
+
+    private void stopShootingSequence() {
+        shootingArmed = false;
+        shooterState = ShooterState.OFF;
+        gateLatchedOpen = false;
+        Servorot.setPosition(GATE_CLOSED);
     }
 }
