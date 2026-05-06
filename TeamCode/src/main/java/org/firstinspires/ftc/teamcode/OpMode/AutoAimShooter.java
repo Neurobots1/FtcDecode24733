@@ -7,9 +7,11 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 @Configurable
 public class AutoAimShooter {
 
-    // Position du but en coordonnees terrain Pedro, a ajuster selon ton terrain.
-    public static double GOAL_X = 3;
-    public static double GOAL_Y = 141;
+    // Position du but bleu en coordonnees terrain Pedro.
+    public static double GOAL_X = 0;
+    public static double GOAL_Y = 142;
+    public static double HEADING_AIM_X = 4;
+    public static double HEADING_AIM_Y = 132;
 
     // Meme logique que le heading lock du projet FTC-2025-2026: PID + petit feed-forward.
     public static double CHASSIS_AIM_KP = 0.8;
@@ -55,9 +57,11 @@ public class AutoAimShooter {
     public void update(double robotX, double robotY, double robotHeading) {
         double dx = GOAL_X - robotX;
         double dy = GOAL_Y - robotY;
+        double aimDx = HEADING_AIM_X - robotX;
+        double aimDy = HEADING_AIM_Y - robotY;
 
         distance = Math.sqrt(dx * dx + dy * dy);
-        angleToGoal = Math.atan2(dy, dx);
+        angleToGoal = Math.atan2(aimDy, aimDx);
         turnError = normalizeAngle(angleToGoal - robotHeading);
         inSpinUpZone = isInShootingZone(robotX, robotY);
 

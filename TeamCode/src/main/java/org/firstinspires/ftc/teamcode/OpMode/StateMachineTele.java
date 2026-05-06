@@ -65,7 +65,6 @@ public class StateMachineTele extends OpMode {
 
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startPose);
-        follower.startTeleOpDrive();
         follower.update();
 
         Servorot.setPosition(GATE_CLOSED);
@@ -77,8 +76,16 @@ public class StateMachineTele extends OpMode {
     }
 
     @Override
-    public void loop() {
+    public void start() {
+        follower.startTeleOpDrive();
+        follower.setStartingPose(startPose);
         follower.update();
+        autoAim.resetHeadingLock();
+        stopShootingSequence();
+    }
+
+    @Override
+    public void loop() {
         Pose robotPose = follower.getPose();
         autoAim.update(robotPose.getX(), robotPose.getY(), robotPose.getHeading());
         shooter.setTargetTPS(autoAim.getTargetTPS());
@@ -100,6 +107,8 @@ public class StateMachineTele extends OpMode {
                 turnCommand,
                 false,
                 Math.toRadians(180));
+        follower.update();
+        robotPose = follower.getPose();
 
         if (gamepad1.y && !fireToggleLast) {
             shootingArmed = !shootingArmed;
