@@ -18,6 +18,7 @@ public class AutoAimShooter {
     public static double CHASSIS_AIM_KF = 0.0;
     public static double MAX_TURN_POWER = 0.4;
     public static double AIM_TOLERANCE_DEG = 2.0;
+    public static double SHOOTING_ZONE_RADIUS_INCHES = 10.0;
 
     // Conversion RPM -> ticks/sec, parce que ShooterSubsytem controle getVelocity() en TPS.
     public static double FLYWHEEL_ENCODER_TICKS_PER_REV = 28.0;
@@ -58,7 +59,7 @@ public class AutoAimShooter {
         distance = Math.sqrt(dx * dx + dy * dy);
         angleToGoal = Math.atan2(dy, dx);
         turnError = normalizeAngle(angleToGoal - robotHeading);
-        inSpinUpZone = isInsideTable(distance);
+        inSpinUpZone = isInShootingZone(robotX, robotY);
 
         updateHeadingLock();
 
@@ -182,10 +183,19 @@ public class AutoAimShooter {
         return DISTANCE_RPM_TABLE[DISTANCE_RPM_TABLE.length - 1][1];
     }
 
-    private boolean isInsideTable(double distance) {
-        return DISTANCE_RPM_TABLE.length > 0
-                && distance >= DISTANCE_RPM_TABLE[0][0]
-                && distance <= DISTANCE_RPM_TABLE[DISTANCE_RPM_TABLE.length - 1][0];
+    private boolean isInShootingZone(double x, double y) {
+        return isInBackZone(x, y, SHOOTING_ZONE_RADIUS_INCHES)
+                || isInFrontZone(x, y, SHOOTING_ZONE_RADIUS_INCHES);
+    }
+
+    private boolean isInBackZone(double x, double y, double radiusInches) {
+        double d = radiusInches * 1.41421356237;
+        return y <= x - 48 + d && y <= -x + 96 + d;
+    }
+
+    private boolean isInFrontZone(double x, double y, double radiusInches) {
+        double d = radiusInches * 1.41421356237;
+        return y >= -x + 144 - d && y >= x - d;
     }
 
     private double rpmToTicksPerSecond(double rpm) {

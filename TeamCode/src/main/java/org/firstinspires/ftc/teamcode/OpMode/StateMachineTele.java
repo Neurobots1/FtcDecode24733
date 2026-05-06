@@ -158,9 +158,9 @@ public class StateMachineTele extends OpMode {
         if (forceFeedIntake) {
             setIntakePower(MAIN_FEED_INTAKE_POWER);
         } else if (gamepad1.right_bumper) {
-            setIntakePower(1);
-        } else if (gamepad1.left_bumper) {
             setIntakePower(-1);
+        } else if (gamepad1.left_bumper) {
+            setIntakePower(1);
         } else {
             setIntakePower(0);
         }
