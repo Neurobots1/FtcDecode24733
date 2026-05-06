@@ -1,15 +1,13 @@
 package org.firstinspires.ftc.teamcode.OpMode;
 
-
-import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.follower;
-
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
@@ -17,177 +15,205 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @TeleOp
 public class StateMachineTele extends OpMode {
 
-    public ShooterSubsytem shooter;//fais appelle au Code ShooterSubsystem
-    private Follower follower;//Pedropathing follower
-    private Servo Servorot;//défine le servo en tant qu'existant
-    private DcMotor FrontL;//22 à 27 dit les moteurs
+    public ShooterSubsytem shooter;
+    private Follower follower;
+    private AutoAimShooter autoAim;
+
+    private Servo Servorot;
+    private DcMotor FrontL;
     private DcMotor FrontR;
     private DcMotor BackL;
     private DcMotor BackR;
-    //private DcMotor Shooter1;
     private DcMotor Shooter2;
-
     private DcMotor Intake;
     private DcMotor INTAKE;
 
-    //défini les positions du shooters
     public double TARGET_TPS = 1360;
     public double DISTANCE = 10;
 
-    public double servo_cool= 0.4;
+    public double servo_cool = 0.4;
     private final Pose startPose = new Pose(72, 72, Math.toRadians(90));
     public static double GATE_OPEN = 0.69;
     public static double GATE_CLOSED = 0.0;
-    //dis au code quand le trigger est triggerrer pouv éviter les missclicks
     public static double TRIGGER_THRESHOLD = 0.1;
+    public static double DRIVER_TURN_OVERRIDE = 0.08;
+    public static double PRE_FEED_INTAKE_POWER = -0.8;
+    public static double MAIN_FEED_INTAKE_POWER = -1.0;
+    public static double FEED_OPEN_SETTLING_SECONDS = 0.30;
 
-    //défini les states de la state machine afin que le code sache qu'elle existe
     public enum ShooterState {
-        OFF,          // shooter arrêté
-        SPINNING_UP,  // flywheel en train d'accélérer
-        FIRING        // flywheel prêt, gate ouvert
-
+        OFF,
+        SPINNING_UP,
+        FIRING
     }
 
-
-    //dis au code qu'au début il est pas actif pour éviter les bugs (fais appelle au premier state ligne 41)
+    private final ElapsedTime gateOpenTimer = new ElapsedTime();
     private ShooterState shooterState = ShooterState.OFF;
-
-    // permettera au code de pouvoir cliquer la gachette et non la maintenir
-    private boolean lastLeftTriggerPressed = false;
-
+    private boolean fireToggleLast = false;
+    private boolean shootingArmed = false;
+    private boolean gateLatchedOpen = false;
+    private boolean feedSettlingStarted = false;
 
     @Override
     public void init() {
-        double DISTANCE = 10;
         shooter = new ShooterSubsytem(hardwareMap);
-        //dis au code que le Shooter Subsytem s'appelle shooter il sera nommé shooter dans le code
+        autoAim = new AutoAimShooter();
+
         Servorot = hardwareMap.get(Servo.class, "Servorot");
-        //le servo est nommer Servorot et il est un servo class il pourrait être un servorot class
         INTAKE = hardwareMap.dcMotor.get("INTAKE");
         Intake = hardwareMap.dcMotor.get("Intake");
         FrontL = hardwareMap.dcMotor.get("FrontL");
         FrontR = hardwareMap.dcMotor.get("FrontR");
         BackL = hardwareMap.dcMotor.get("BackL");
         BackR = hardwareMap.dcMotor.get("BackR");
-       // Shooter1 = hardwareMap.dcMotor.get("Shooter1");
         Shooter2 = hardwareMap.dcMotor.get("Shooter2");
-        //nomme tous les moteurs
-        //Shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        // explique au code que le shooter utilise l'encondeur ce qui fais le PID du ShooterSubsytem
+
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startPose);
         follower.startTeleOpDrive();
         follower.update();
 
-        //dis au code que au début le shooter et le servo sont a off
         Servorot.setPosition(GATE_CLOSED);
         shooter.stop();
+        autoAim.resetHeadingLock();
         shooterState = ShooterState.OFF;
+        shootingArmed = false;
+        gateLatchedOpen = false;
+        feedSettlingStarted = false;
+        gateOpenTimer.reset();
     }
 
     @Override
     public void loop() {
-        // les followwer updates et les gamepad1.Xstick_variable x ou y
-        // disent au robot à l'aide de pedro path que le robot roule en mechanum
         follower.update();
+        Pose robotPose = follower.getPose();
+        autoAim.update(robotPose.getX(), robotPose.getY(), robotPose.getHeading());
+        shooter.setTargetTPS(autoAim.getTargetTPS());
+
+        double driverTurnCommand = -gamepad1.right_stick_x;
+        double turnCommand = driverTurnCommand;
+        boolean headingLockActive = autoAim.isInSpinUpZone()
+                && Math.abs(driverTurnCommand) < DRIVER_TURN_OVERRIDE;
+        if (headingLockActive) {
+            turnCommand = autoAim.getTurnPower();
+        } else {
+            autoAim.resetHeadingLock();
+        }
+
         follower.setTeleOpDrive(
                 -gamepad1.left_stick_y,
                 -gamepad1.left_stick_x,
-                -gamepad1.right_stick_x,
+                turnCommand,
                 false,
                 Math.toRadians(180));
-        // contrôle intake
-        if (gamepad1.right_bumper) {
-            Intake.setPower(1);
-            INTAKE.setPower(1);
-        } else if (gamepad1.left_bumper) {
-            Intake.setPower(-1);
-            INTAKE.setPower(-1);
-        } else {
-            Intake.setPower(0);
-            INTAKE.setPower(0);
-        }
 
-        //le TARGET_TPS c'est le shooter
-
-        //définie l'état du trigger pour le shooter (activer ou pas sans avoir a maintenir le trigger
-        // position active ou pas
-        boolean leftTriggerPressed = gamepad1.left_trigger > TRIGGER_THRESHOLD;
-        boolean leftTriggerJustPressed = leftTriggerPressed && !lastLeftTriggerPressed;
-//transmet l'état de la gachette en mouvement pour le shooter
-        if (leftTriggerJustPressed) {
-
-            if (shooterState == ShooterState.OFF) {
-
-                // premier clic
-                // on commence le spinup
+        if (gamepad1.y && !fireToggleLast) {
+            shootingArmed = !shootingArmed;
+            if (shootingArmed) {
                 shooterState = ShooterState.SPINNING_UP;
-                Servorot.setPosition(GATE_CLOSED); // gate fermé
-                shooter.start();                   // flywheel démarre
-
             } else {
-
-                // deuxième clic
-                // arrêt complet du système
                 shooterState = ShooterState.OFF;
-
-                Servorot.setPosition(GATE_CLOSED);
-                shooter.stop();
+                gateLatchedOpen = false;
+                feedSettlingStarted = false;
+                gateOpenTimer.reset();
             }
         }
-        double DISTANCE = (follower.getPose().getX()*follower.getPose().getX() +follower.getPose().getY()*follower.getPose().getY());
-        //définit chaque state de la state machine du shooter
-        double TARGET_TPS = 1200;
+        fireToggleLast = gamepad1.y;
+
+        DISTANCE = autoAim.getDistance();
+        TARGET_TPS = autoAim.getTargetTPS();
+        boolean autoSpinRequested = autoAim.isInSpinUpZone();
+        boolean shooterReady = shooter.atSpeed() && autoAim.isAimed();
+
         switch (shooterState) {
-
             case OFF:
-
-                // shooter arrêté et servo bloquant
                 Servorot.setPosition(GATE_CLOSED);
-                shooter.stop();
-
+                gateLatchedOpen = false;
+                feedSettlingStarted = false;
+                if (autoSpinRequested) {
+                    shooter.start();
+                } else {
+                    shooter.stop();
+                }
                 break;
 
             case SPINNING_UP:
-
-                // flywheel accélère ET le servo reste fermer
                 shooter.start();
                 Servorot.setPosition(GATE_CLOSED);
-
-                // si LA vitesse est atteinte on passe en firing mode
-                if (shooter.atSpeed()) {
-
+                if (shootingArmed && shooterReady) {
+                    gateLatchedOpen = true;
+                    feedSettlingStarted = false;
+                    gateOpenTimer.reset();
                     shooterState = ShooterState.FIRING;
-
                 }
-
                 break;
 
             case FIRING:
-
-                // shooter reste en mode tir et le servo reste ouvert
                 shooter.start();
-                Servorot.setPosition(GATE_OPEN);
-
+                if (shootingArmed && gateLatchedOpen) {
+                    Servorot.setPosition(GATE_OPEN);
+                } else {
+                    Servorot.setPosition(GATE_CLOSED);
+                    gateLatchedOpen = false;
+                    feedSettlingStarted = false;
+                    shooterState = shootingArmed ? ShooterState.SPINNING_UP : ShooterState.OFF;
+                }
                 break;
+        }
+
+        boolean gateOpen = shooterState == ShooterState.FIRING && gateLatchedOpen;
+        if (gateOpen && !feedSettlingStarted) {
+            feedSettlingStarted = true;
+            gateOpenTimer.reset();
+        } else if (!gateOpen) {
+            feedSettlingStarted = false;
+        }
+
+        boolean forceFeedIntake = gateOpen
+                && feedSettlingStarted
+                && gateOpenTimer.seconds() >= FEED_OPEN_SETTLING_SECONDS;
+        boolean preFeedIntake = shootingArmed && !forceFeedIntake;
+
+        if (forceFeedIntake) {
+            setIntakePower(MAIN_FEED_INTAKE_POWER);
+        } else if (preFeedIntake) {
+            setIntakePower(PRE_FEED_INTAKE_POWER);
+        } else if (gamepad1.right_bumper) {
+            setIntakePower(1);
+        } else if (gamepad1.left_bumper) {
+            setIntakePower(-1);
+        } else {
+            setIntakePower(0);
         }
 
         shooter.update();
 
-        //dis de la telemetry au robot
         telemetry.addData("Shooter State", shooterState);
+        telemetry.addData("Shooting Armed", shootingArmed);
+        telemetry.addData("Gate Latched", gateLatchedOpen);
+        telemetry.addData("Force Feed Intake", forceFeedIntake);
+        telemetry.addData("Pre Feed Intake", preFeedIntake);
         telemetry.addData("Target TPS", TARGET_TPS);
+        telemetry.addData("Target RPM", autoAim.getTargetRPM());
         telemetry.addData("Current TPS", shooter.getCurrentTPS());
         telemetry.addData("Error", shooter.getError());
         telemetry.addData("Power", shooter.getLastPower());
         telemetry.addData("Voltage", shooter.getVoltage());
         telemetry.addData("At Speed", shooter.atSpeed());
-        telemetry.addData("x:",  follower.getPose().getX());
-        telemetry.addData("y:", follower.getPose().getY());
+        telemetry.addData("x:", robotPose.getX());
+        telemetry.addData("y:", robotPose.getY());
         telemetry.addData("Distance:", DISTANCE);
-        telemetry.addData("servo:position",servo_cool );
+        telemetry.addData("In Spin Zone", autoAim.isInSpinUpZone());
+        telemetry.addData("Aimed", autoAim.isAimed());
+        telemetry.addData("Heading Lock", headingLockActive);
+        telemetry.addData("Heading Error Deg", Math.toDegrees(autoAim.getTurnError()));
+        telemetry.addData("Turn Command", turnCommand);
+        telemetry.addData("servo:position", servo_cool);
         telemetry.update();
-
-        }
     }
+
+    private void setIntakePower(double power) {
+        Intake.setPower(power);
+        INTAKE.setPower(power);
+    }
+}
