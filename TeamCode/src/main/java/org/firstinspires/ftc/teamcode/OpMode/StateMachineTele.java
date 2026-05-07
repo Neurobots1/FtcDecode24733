@@ -28,15 +28,15 @@ public class StateMachineTele extends OpMode {
     private DcMotor INTAKE;
 
     public double TARGET_TPS = 1360;
-    public double DISTANCE = 10;
+    public double DISTANCE = 8;
 
     public double servo_cool = 0.4;
-    private final Pose startPose = new Pose(72, 72, Math.toRadians(90));
+    private final Pose startPose = new Pose(144, 144, Math.toRadians(90));
     public static double GATE_OPEN = 0.69;
     public static double GATE_CLOSED = 0.0;
     public static double TRIGGER_THRESHOLD = 0.1;
     public static double DRIVER_TURN_OVERRIDE = 0.08;
-    public static double MAIN_FEED_INTAKE_POWER = -1.0;
+    public static double MAIN_FEED_INTAKE_POWER = 1.0;
 
     public enum ShooterState {
         OFF,
@@ -167,9 +167,9 @@ public class StateMachineTele extends OpMode {
         if (forceFeedIntake) {
             setIntakePower(MAIN_FEED_INTAKE_POWER);
         } else if (gamepad1.right_bumper) {
-            setIntakePower(-1);
-        } else if (gamepad1.left_bumper) {
             setIntakePower(1);
+        } else if (gamepad1.left_bumper) {
+            setIntakePower(-1);
         } else {
             setIntakePower(0);
         }
@@ -189,6 +189,7 @@ public class StateMachineTele extends OpMode {
         telemetry.addData("At Speed", shooter.atSpeed());
         telemetry.addData("x:", robotPose.getX());
         telemetry.addData("y:", robotPose.getY());
+        telemetry.addData("heading deg:", Math.toDegrees(robotPose.getHeading()));
         telemetry.addData("Distance:", DISTANCE);
         telemetry.addData("In Spin Zone", autoAim.isInSpinUpZone());
         telemetry.addData("Aimed", autoAim.isAimed());
