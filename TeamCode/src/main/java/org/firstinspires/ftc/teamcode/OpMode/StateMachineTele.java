@@ -31,7 +31,7 @@ public class StateMachineTele extends OpMode {
     public double DISTANCE = 8;
 
     public double servo_cool = 0.4;
-    private final Pose startPose = new Pose(144, 144, Math.toRadians(90));
+    private final Pose startPose = new Pose(72, 72, Math.toRadians(90));
     public static double GATE_OPEN = 0.69;
     public static double GATE_CLOSED = 0.0;
     public static double TRIGGER_THRESHOLD = 0.1;
