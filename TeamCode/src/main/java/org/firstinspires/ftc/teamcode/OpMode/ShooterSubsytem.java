@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.OpMode;
 
-import static android.icu.lang.UCharacter.GraphemeClusterBreak.T;
-
 import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -26,7 +24,7 @@ public class ShooterSubsytem {
     public static double NOMINAL_VOLTAGE = 12;
     public static double MAX_POWER = 1.0;
 
-    private double TARGETTPS = 1060;
+    private double targetTPS = 1360;
 
     private boolean enabled = false;
 
@@ -55,11 +53,11 @@ public class ShooterSubsytem {
     }
 
     public void setTargetTPS(double targetTPS) {
-        this.TARGETTPS = targetTPS;
+        this.targetTPS = targetTPS;
     }
 
     public double getTargetTPS() {
-        return TARGETTPS;
+        return targetTPS;
     }
 
     public void start() {
@@ -78,7 +76,7 @@ public class ShooterSubsytem {
     }
 
     public void update() {
-        if (!enabled || TARGETTPS <= 0) {
+        if (!enabled || targetTPS <= 0) {
             shooter1.setPower(0.0);
             shooter2.setPower(0.0);
 
@@ -91,7 +89,7 @@ public class ShooterSubsytem {
         }
 
         double currentTPS = getCurrentTPS();
-        double error = TARGETTPS - currentTPS;
+        double error = targetTPS - currentTPS;
 
         double dt = timer.seconds();
         timer.reset();
@@ -113,7 +111,7 @@ public class ShooterSubsytem {
         }
 
         double pid = (P * error) + (I * integralSum) + (D * derivative);
-        double ff = F * TARGETTPS / normalizedVoltage;
+        double ff = F * targetTPS / normalizedVoltage;
 
         double power = pid + ff;
         power = Math.max(0.0, Math.min(MAX_POWER, power));
@@ -125,7 +123,7 @@ public class ShooterSubsytem {
     }
 
     public boolean atSpeed() {
-        return enabled && TARGETTPS > 0 && Math.abs(TARGETTPS - getCurrentTPS()) <= VELOCITY_TOLERANCE_TPS;
+        return enabled && targetTPS > 0 && Math.abs(targetTPS - getCurrentTPS()) <= VELOCITY_TOLERANCE_TPS;
     }
 
     public double getCurrentTPS() {
@@ -149,7 +147,7 @@ public class ShooterSubsytem {
     }
 
     public double getError() {
-        return TARGETTPS - getCurrentTPS();
+        return targetTPS - getCurrentTPS();
     }
 
     public boolean isEnabled() {

@@ -83,7 +83,7 @@ public class StateMachineTele extends OpMode {
         autoAim.update(robotPose.getX(), robotPose.getY(), robotPose.getHeading());
         shooter.setTargetTPS(autoAim.getTargetTPS());
 
-        double driverTurnCommand = -gamepad1.right_stick_x;
+        double driverTurnCommand = gamepad1.right_stick_x;
         double turnCommand = driverTurnCommand;
         boolean headingLockActive = shootingArmed
                 && autoAim.isInSpinUpZone()
@@ -95,10 +95,10 @@ public class StateMachineTele extends OpMode {
         }
 
         follower.setTeleOpDrive(
-                -gamepad1.left_stick_y,
-                -gamepad1.left_stick_x,
+                gamepad1.left_stick_y,
+                gamepad1.left_stick_x,
                 turnCommand,
-                false,
+                true,
                 Math.toRadians(180));
 
         if (gamepad1.y && !fireToggleLast) {

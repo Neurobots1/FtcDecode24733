@@ -134,4 +134,3 @@ public class feild_centrique extends OpMode {
         BackR.setPower(maxSpeed * (backRightPower / maxPower));
     }
 }
-
