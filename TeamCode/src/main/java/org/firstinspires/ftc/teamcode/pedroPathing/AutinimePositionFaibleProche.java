@@ -54,10 +54,10 @@ public class AutinimePositionFaibleProche extends OpMode { private DcMotor Front
     }
     @Override
     public void loop(){
-        int FLposition = 2500;
-        int FRposition = -2500;
-        int BLposition = -2500;
-        int BRposition = 2500;
+        int FLposition = 1500;
+        int FRposition = -1500;
+        int BLposition = -1500;
+        int BRposition = 1500;
         FrontL.setTargetPosition(FLposition);
         FrontR.setTargetPosition(FRposition);
         BackL.setTargetPosition(BLposition);

@@ -24,7 +24,7 @@ public class ShooterSubsytem {
     public static double NOMINAL_VOLTAGE = 12;
     public static double MAX_POWER = 1.0;
 
-    private double targetTPS = 1360;
+    private double targetTPS = 1060;
 
     private boolean enabled = false;
 
