@@ -43,7 +43,7 @@ public class CodeBleu extends OpMode {
     public static double TRIGGER_THRESHOLD = 0.05;
 
     // Mets 30 pour tester plus facilement, puis redescends à 10 après
-    public static double ZONE_RADIUS_INCHES = 30;
+    public static double ZONE_RADIUS_INCHES = 10;
 
     public boolean isInAZone;
 
