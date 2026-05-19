@@ -1,3 +1,4 @@
+package org.firstinspires.ftc.teamcode;
 
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
@@ -22,7 +23,7 @@ public class CodeBleu extends OpMode {
     private Servo Servorot;
 
     private DcMotor FrontL;
-    private DcMotor FrontR;y
+    private DcMotor FrontR;
     private DcMotor BackL;
     private DcMotor BackR;
 
