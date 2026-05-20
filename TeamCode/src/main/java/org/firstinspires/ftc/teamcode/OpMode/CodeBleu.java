@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 public class CodeBleu extends OpMode {
 
     public ShooterSubsytem shooter;
+    private AutoAimShooter autoAimShooter;
     private Follower follower;
 
     private Servo Servorot;
@@ -34,6 +35,9 @@ public class CodeBleu extends OpMode {
     public static double RESET_HEADING = 0;
 
     private boolean lastYPressed = false;
+    private boolean lastAPressed = false;
+
+    private boolean safeMode = false;
 
     public static double TARGET_TPS = 900;
 
@@ -42,10 +46,8 @@ public class CodeBleu extends OpMode {
 
     public static double TRIGGER_THRESHOLD = 0.05;
 
-    // Mets 30 pour tester plus facilement, puis redescends à 10 après
-    public static double ZONE_RADIUS_INCHES = 10;
-
-    public boolean isInAZone;
+    private boolean autoAimActive = false;
+    private boolean isInAZone = false;
 
     public enum ShooterState {
         OFF,
@@ -58,6 +60,7 @@ public class CodeBleu extends OpMode {
     @Override
     public void init() {
         shooter = new ShooterSubsytem(hardwareMap);
+        autoAimShooter = new AutoAimShooter();
 
         Servorot = hardwareMap.get(Servo.class, "Servorot");
 
@@ -80,51 +83,66 @@ public class CodeBleu extends OpMode {
         shooter.stop();
 
         shooterState = ShooterState.OFF;
-    }
-
-    public boolean isInBackZone(double x, double y, double radiusInches) {
-        double d = radiusInches * Math.sqrt(2);
-
-        boolean underFirstLine = y <= x - 48 + d;
-        boolean underSecondLine = y <= -x + 96 + d;
-
-        return underFirstLine && underSecondLine;
-    }
-
-    public boolean isInFrontZone(double x, double y, double radiusInches) {
-        double d = radiusInches * Math.sqrt(2);
-
-        boolean aboveFirstLine = y >= -x + 144 - d;
-        boolean aboveSecondLine = y >= x - d;
-
-        return aboveFirstLine && aboveSecondLine;
+        autoAimShooter.resetHeadingLock();
     }
 
     @Override
     public void loop() {
 
-        // Reset la pose avec Y
         boolean yPressed = gamepad1.y;
         boolean yJustPressed = yPressed && !lastYPressed;
 
         if (yJustPressed) {
             follower.setPose(new Pose(RESET_X, RESET_Y, RESET_HEADING));
+            autoAimShooter.resetHeadingLock();
         }
 
         lastYPressed = yPressed;
 
-        // Drive Pedro
+        boolean aPressed = gamepad1.a;
+        boolean aJustPressed = aPressed && !lastAPressed;
+
+        if (aJustPressed) {
+            safeMode = !safeMode;
+            autoAimShooter.resetHeadingLock();
+        }
+
+        lastAPressed = aPressed;
+
+        Pose pose = follower.getPose();
+
+        double x = pose.getX();
+        double y = pose.getY();
+        double heading = pose.getHeading();
+
+        boolean triggerPressed = gamepad1.left_trigger > TRIGGER_THRESHOLD;
+
+        autoAimShooter.update(x, y, heading);
+
+        isInAZone = autoAimShooter.isInSpinUpZone();
+        autoAimActive = triggerPressed && isInAZone && !safeMode;
+
+        ShooterSubsytem.TARGET_TPS = autoAimShooter.getTargetTPS();
+        TARGET_TPS = ShooterSubsytem.TARGET_TPS;
+
+        double turnInput;
+
+        if (autoAimActive) {
+            turnInput = autoAimShooter.getTurnPower();
+        } else {
+            turnInput = gamepad1.right_stick_x;
+            autoAimShooter.resetHeadingLock();
+        }
+
         follower.setTeleOpDrive(
                 -gamepad1.left_stick_y,
                 gamepad1.left_stick_x,
-                gamepad1.right_stick_x,
+                turnInput,
                 true
         );
 
-        // Important : update après setTeleOpDrive
         follower.update();
 
-        // Intake
         if (gamepad1.right_bumper) {
             Intake.setPower(1);
             INTAKE.setPower(1);
@@ -136,37 +154,7 @@ public class CodeBleu extends OpMode {
             INTAKE.setPower(0);
         }
 
-        // Pose du robot
-        Pose pose = follower.getPose();
-
-        double x = pose.getX();
-        double y = pose.getY();
-
-        // Calcul des lignes pour debug
-        double d = ZONE_RADIUS_INCHES * Math.sqrt(2);
-
-        double backLine1 = x - 48 + d;
-        double backLine2 = -x + 96 + d;
-
-        double frontLine1 = -x + 144 - d;
-        double frontLine2 = x - d;
-
-        // Conditions individuelles pour voir ce qui bloque
-        boolean backCondition1 = y <= backLine1;
-        boolean backCondition2 = y <= backLine2;
-
-        boolean frontCondition1 = y >= frontLine1;
-        boolean frontCondition2 = y >= frontLine2;
-
-        boolean inBackZone = backCondition1 && backCondition2;
-        boolean inFrontZone = frontCondition1 && frontCondition2;
-
-        isInAZone = inFrontZone || inBackZone;
-
-        boolean triggerPressed = gamepad1.left_trigger > TRIGGER_THRESHOLD;
-
-        // Shooter automatique dans la zone
-        if (isInAZone) {
+        if (isInAZone || safeMode || triggerPressed) {
             shooter.start();
 
             if (shooter.atSpeed()) {
@@ -194,7 +182,7 @@ public class CodeBleu extends OpMode {
             case READY:
                 shooter.start();
 
-                if (triggerPressed) {
+                if (triggerPressed && (autoAimShooter.isAimed() || safeMode)) {
                     Servorot.setPosition(GATE_OPEN);
                 } else {
                     Servorot.setPosition(GATE_CLOSED);
@@ -205,32 +193,30 @@ public class CodeBleu extends OpMode {
 
         shooter.update();
 
+        telemetry.addLine("----- SAFE MODE -----");
+        telemetry.addData("Safe Mode", safeMode);
+        telemetry.addData("Toggle", "gamepad1.a");
+
         telemetry.addLine("----- POSE -----");
         telemetry.addData("x", x);
         telemetry.addData("y", y);
-        telemetry.addData("heading", pose.getHeading());
+        telemetry.addData("heading deg", Math.toDegrees(heading));
 
-        telemetry.addLine("----- ZONE DEBUG -----");
-        telemetry.addData("Zone Radius", ZONE_RADIUS_INCHES);
-        telemetry.addData("d", d);
-
-        telemetry.addData("Back Line 1 : y <= ", backLine1);
-        telemetry.addData("Back Line 2 : y <= ", backLine2);
-        telemetry.addData("Back Condition 1", backCondition1);
-        telemetry.addData("Back Condition 2", backCondition2);
-        telemetry.addData("In Back Zone", inBackZone);
-
-        telemetry.addData("Front Line 1 : y >= ", frontLine1);
-        telemetry.addData("Front Line 2 : y >= ", frontLine2);
-        telemetry.addData("Front Condition 1", frontCondition1);
-        telemetry.addData("Front Condition 2", frontCondition2);
-        telemetry.addData("In Front Zone", inFrontZone);
-
-        telemetry.addData("In Any Zone", isInAZone);
+        telemetry.addLine("----- AUTO AIM -----");
+        telemetry.addData("Auto Aim Active", autoAimActive);
+        telemetry.addData("In Zone", isInAZone);
+        telemetry.addData("Goal X", AutoAimShooter.GOAL_X);
+        telemetry.addData("Goal Y", AutoAimShooter.GOAL_Y);
+        telemetry.addData("Distance To Goal", autoAimShooter.getDistance());
+        telemetry.addData("Angle To Goal Deg", Math.toDegrees(autoAimShooter.getAngleToGoal()));
+        telemetry.addData("Turn Error Deg", Math.toDegrees(autoAimShooter.getTurnError()));
+        telemetry.addData("Turn Power", autoAimShooter.getTurnPower());
+        telemetry.addData("Aimed", autoAimShooter.isAimed());
 
         telemetry.addLine("----- SHOOTER -----");
         telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Trigger Pressed", triggerPressed);
+        telemetry.addData("Target RPM", autoAimShooter.getTargetRPM());
         telemetry.addData("Target TPS", TARGET_TPS);
         telemetry.addData("Current TPS", shooter.getCurrentTPS());
         telemetry.addData("Error", shooter.getError());

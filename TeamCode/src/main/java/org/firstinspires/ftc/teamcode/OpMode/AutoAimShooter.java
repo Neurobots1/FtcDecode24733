@@ -1,40 +1,32 @@
 package org.firstinspires.ftc.teamcode.OpMode;
 
 import com.bylazar.configurables.annotations.Configurable;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
-// Systeme simple sans camera: utilise la pose Pedro pour viser le but et choisir la vitesse du shooter.
 @Configurable
 public class AutoAimShooter {
 
-    // Position du but en coordonnees terrain Pedro, a ajuster selon ton terrain.
     public static double GOAL_X = 3;
     public static double GOAL_Y = 141;
 
-    // Meme logique que le heading lock du projet FTC-2025-2026: PID + petit feed-forward.
-    public static double CHASSIS_AIM_KP = 0.8;
-    public static double CHASSIS_AIM_KI = 0.0;
-    public static double CHASSIS_AIM_KD = 0.0;
-    public static double CHASSIS_AIM_KF = 0.0;
-    public static double MAX_TURN_POWER = 0.4;
-    public static double AIM_TOLERANCE_DEG = 2.0;
+    public static double HEADING_OFFSET_DEG = -90;
+    public static double TURN_DIRECTION = 1.0;
+
+    public static double CHASSIS_AIM_KP = 0.12;
+    public static double MAX_TURN_POWER = 0.16;
+    public static double AIM_TOLERANCE_DEG = 7.0;
+    public static double TURN_DEADBAND_DEG = 2.0;
+
     public static double SHOOTING_ZONE_RADIUS_INCHES = 10.0;
 
-    // Conversion RPM -> ticks/sec, parce que ShooterSubsytem controle getVelocity() en TPS.
     public static double FLYWHEEL_ENCODER_TICKS_PER_REV = 28.0;
 
-    // Table de calibration: {distance en pouces, vitesse flywheel en RPM}.
-    // Ajoute/ajuste les points ici; le code interpole lineairement entre deux points.
     private static final double[][] DISTANCE_RPM_TABLE = {
-            {24.0, 2350.0},
-            {36.0, 2575.0},
-            {48.0, 2800.0},
-            {60.0, 3025.0},
-            {72.0, 3250.0},
-            {84.0, 3475.0}
+            {58.0, 1100.0},
+            {66.0, 1125.0},
+            {88.0, 1120.0},
+            {101.0, 1313.0},
+            {105.0, 1350.0}
     };
-
-    private final ElapsedTime headingTimer = new ElapsedTime();
 
     private double distance;
     private double angleToGoal;
@@ -45,38 +37,31 @@ public class AutoAimShooter {
     private boolean aimed;
     private boolean inSpinUpZone;
 
-    private double integral;
-    private double previousError;
-    private double lastProportionalTerm;
-    private double lastIntegralTerm;
-    private double lastDerivativeTerm;
-    private double lastFeedforwardTerm;
-
     public void update(double robotX, double robotY, double robotHeading) {
         double dx = GOAL_X - robotX;
         double dy = GOAL_Y - robotY;
 
         distance = Math.sqrt(dx * dx + dy * dy);
+
         angleToGoal = Math.atan2(dy, dx);
-        turnError = normalizeAngle(angleToGoal - robotHeading);
+
+        double correctedRobotHeading = robotHeading + Math.toRadians(HEADING_OFFSET_DEG);
+
+        turnError = normalizeAngle(angleToGoal - correctedRobotHeading);
+
         inSpinUpZone = isInShootingZone(robotX, robotY);
 
         updateHeadingLock();
 
         targetRPM = getShooterRPM(distance);
-        targetTPS = rpmToTicksPerSecond(targetRPM);
+        targetTPS = targetRPM;
+
         aimed = Math.abs(turnError) < Math.toRadians(AIM_TOLERANCE_DEG);
     }
 
     public void resetHeadingLock() {
-        integral = 0.0;
-        previousError = 0.0;
         turnPower = 0.0;
-        lastProportionalTerm = 0.0;
-        lastIntegralTerm = 0.0;
-        lastDerivativeTerm = 0.0;
-        lastFeedforwardTerm = 0.0;
-        headingTimer.reset();
+        aimed = false;
     }
 
     public double getTurnPower() {
@@ -95,6 +80,10 @@ public class AutoAimShooter {
         return distance;
     }
 
+    public double getAngleToGoal() {
+        return angleToGoal;
+    }
+
     public double getTurnError() {
         return turnError;
     }
@@ -107,63 +96,30 @@ public class AutoAimShooter {
         return inSpinUpZone;
     }
 
-    public double getLastProportionalTerm() {
-        return lastProportionalTerm;
-    }
-
-    public double getLastIntegralTerm() {
-        return lastIntegralTerm;
-    }
-
-    public double getLastDerivativeTerm() {
-        return lastDerivativeTerm;
-    }
-
-    public double getLastFeedforwardTerm() {
-        return lastFeedforwardTerm;
-    }
-
     private void updateHeadingLock() {
-        double dt = Math.max(1e-3, headingTimer.seconds());
-        headingTimer.reset();
+        double deadbandRad = Math.toRadians(TURN_DEADBAND_DEG);
 
-        lastProportionalTerm = turnError * CHASSIS_AIM_KP;
-        lastDerivativeTerm = ((turnError - previousError) / dt) * CHASSIS_AIM_KD;
-        lastFeedforwardTerm = Math.abs(turnError) > 1e-4
-                ? Math.signum(turnError) * CHASSIS_AIM_KF
-                : 0.0;
-
-        double candidateIntegral = integral + turnError * dt;
-        double candidateIntegralTerm = candidateIntegral * CHASSIS_AIM_KI;
-        double unclampedCommand = lastProportionalTerm
-                + candidateIntegralTerm
-                + lastDerivativeTerm
-                + lastFeedforwardTerm;
-
-        if (Math.abs(unclampedCommand) <= MAX_TURN_POWER
-                || Math.signum(unclampedCommand) != Math.signum(turnError)) {
-            integral = candidateIntegral;
+        if (Math.abs(turnError) < deadbandRad) {
+            turnPower = 0.0;
+            return;
         }
 
-        lastIntegralTerm = integral * CHASSIS_AIM_KI;
-        previousError = turnError;
-        turnPower = clip(
-                lastProportionalTerm
-                        + lastIntegralTerm
-                        + lastDerivativeTerm
-                        + lastFeedforwardTerm,
-                -MAX_TURN_POWER,
-                MAX_TURN_POWER
-        );
+        double command = turnError * CHASSIS_AIM_KP;
+
+        command = clip(command, -MAX_TURN_POWER, MAX_TURN_POWER);
+
+        turnPower = command * TURN_DIRECTION;
     }
 
     private double getShooterRPM(double distance) {
         if (DISTANCE_RPM_TABLE.length == 0) {
             return 0.0;
         }
+
         if (distance <= DISTANCE_RPM_TABLE[0][0]) {
             return DISTANCE_RPM_TABLE[0][1];
         }
+
         if (distance >= DISTANCE_RPM_TABLE[DISTANCE_RPM_TABLE.length - 1][0]) {
             return DISTANCE_RPM_TABLE[DISTANCE_RPM_TABLE.length - 1][1];
         }
@@ -189,12 +145,12 @@ public class AutoAimShooter {
     }
 
     private boolean isInBackZone(double x, double y, double radiusInches) {
-        double d = radiusInches * 1.41421356237;
+        double d = radiusInches * Math.sqrt(2);
         return y <= x - 48 + d && y <= -x + 96 + d;
     }
 
     private boolean isInFrontZone(double x, double y, double radiusInches) {
-        double d = radiusInches * 1.41421356237;
+        double d = radiusInches * Math.sqrt(2);
         return y >= -x + 144 - d && y >= x - d;
     }
 
@@ -210,9 +166,11 @@ public class AutoAimShooter {
         while (angle > Math.PI) {
             angle -= 2.0 * Math.PI;
         }
+
         while (angle < -Math.PI) {
             angle += 2.0 * Math.PI;
         }
+
         return angle;
     }
 
