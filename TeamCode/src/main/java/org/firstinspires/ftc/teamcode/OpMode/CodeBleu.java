@@ -179,7 +179,7 @@ public class CodeBleu extends OpMode {
                 Servorot.setPosition(GATE_CLOSED);
                 break;
 
-            case READY:
+            case READY://
                 shooter.start();
 
                 if (triggerPressed|| safeMode) {

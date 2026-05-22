@@ -18,7 +18,7 @@
         <meta-data
             android:name="org.firstinspires.latestSupportedControlHubVersion"
             android:value="1" />
-
+//
         <!-- The main robot controller activity -->
         <activity
             android:name="org.firstinspires.ftc.robotcontroller.internal.PermissionValidatorWrapper"
