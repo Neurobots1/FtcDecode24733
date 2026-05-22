@@ -182,7 +182,7 @@ public class CodeBleu extends OpMode {
             case READY:
                 shooter.start();
 
-                if (triggerPressed && (autoAimShooter.isAimed() || safeMode)) {
+                if (triggerPressed|| safeMode) {
                     Servorot.setPosition(GATE_OPEN);
                 } else {
                     Servorot.setPosition(GATE_CLOSED);
